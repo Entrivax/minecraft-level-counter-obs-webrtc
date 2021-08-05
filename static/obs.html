@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft timer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-with-locales.min.js"></script>
+    <style>
+        html, body {
+            border: 0;
+            padding: 0;
+            margin: 0;
+        }
+        body {
+            font-family: 'Comfortaa', cursive;
+        }
+
+        .container {
+            display: flex;
+        }
+
+        .tile {
+            background-color: #8f8f8f;
+            border: 0.25rem solid #fff;
+            border-top-color: #373737;
+            border-left-color: #373737;
+            padding: 0.25rem;
+        }
+
+        .item {
+            background-size: 100% calc(96px*5);
+            image-rendering: pixelated;
+            transition: all 1s ease-in-out;
+            width: 5rem;
+            height: 5rem;
+        }
+
+        .tools {
+            background-image: url(/tools.png);
+        }
+
+        .armor {
+            background-image: url(/armor.png);
+        }
+
+        .level-1 {
+            background-position: 0px 0px;
+        }
+
+        .level-2 {
+            background-position: 0px calc(-16px * 5);
+        }
+
+        .level-3 {
+            background-position: 0px calc(-32px * 5);
+        }
+
+        .level-4 {
+            background-position: 0px calc(-48px * 5);
+        }
+
+        .level-5 {
+            background-position: 0px calc(-64px * 5);
+        }
+
+        .level-6 {
+            background-position: 0px calc(-80px * 5);
+        }
+
+        .center {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            background-color: #d4d4d4;
+            border-radius: 0.5rem;
+            width: min-content;
+            border: 0.3rem solid black;
+            box-shadow: inset 3px 3px 0px 3px #fff, inset -3px -3px 0 3px #555555;
+        }
+
+        .text {
+            max-width: 100%;
+            margin-top: 1rem;
+            color: #404040;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            margin: 0 0 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="center">
+        <h1>Équipement max</h1>
+        <div class="container">
+            <div class="tile">
+                <div class="item tools"></div>
+            </div>
+            <div class="tile">
+                <div class="item armor"></div>
+            </div>
+        </div>
+        <div id="upgrade-text" class="text">Augmentation <span id="timer"></span></div>
+    </div>
+</body>
+
+<script>
+
+const armorLevelDiv = document.querySelector('.armor')
+const toolsLevelDiv = document.querySelector('.tools')
+const timerLabel = document.getElementById('timer')
+const upgradeLabel = document.getElementById('upgrade-text')
+
+let urlParams = new URLSearchParams(window.location.search)
+let uid = urlParams.get('uid')
+if (!uid) {
+    document.write("No uid, check the link")
+} else {
+    let lang = urlParams.get('lang') || 'en'
+    moment.locale(lang)
+    moment.relativeTimeThreshold('h', 23)
+    moment.relativeTimeThreshold('m', 59)
+    moment.relativeTimeThreshold('s', 59)
+    moment.relativeTimeThreshold('ss', null)
+    
+    let ws = new WebSocket(`ws://${location.host}/`)
+    ws.onopen = function () {
+        if (uid) {
+            ws.send(JSON.stringify({ type: 'set-uid', uid }))
+        }
+    }
+    ws.onmessage = /**
+    @param {MessageEvent} ev 
+    */function (ev) {
+        try {
+            const obj = JSON.parse(ev.data)
+            switch (obj.type) {
+                case 'set-uid':
+                    ws.send(JSON.stringify({ type: 'get-state' }))
+                    break
+                case 'get-state':
+                    updateArmorLevel(obj.state.armorLevel)
+                    updateToolsLevel(obj.state.toolsLevel)
+                    updateTimerInput(obj.nextUpdate)
+                    setTimeout(() => {
+                        ws.send(JSON.stringify({ type: 'get-state' }))
+                    }, 1000)
+                    break
+            }
+        } catch (err) {
+            console.error(err)
+        }
+    }
+}
+
+function updateArmorLevel(level) {
+    armorLevelDiv.className = "item armor level-" + level
+}
+
+function updateToolsLevel(level) {
+    toolsLevelDiv.className = "item tools level-" + level
+}
+
+let nextUpdate = null
+function updateTimerInput(next) {
+    nextUpdate = next
+    updateNextUpdate()
+}
+
+function updateNextUpdate() {
+    upgradeLabel.style.display = nextUpdate ? '' : 'none'
+    timerLabel.innerText = nextUpdate ? moment(nextUpdate).fromNow() : ''
+}
+
+setInterval(() => {
+    updateNextUpdate()
+}, 1000)
+
+</script>
+</html>

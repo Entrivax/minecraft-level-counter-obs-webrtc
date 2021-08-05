@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft timer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-with-locales.min.js"></script>
+</head>
+<body>
+    <table>
+        <tr>
+            <td>Armor</td>
+            <td>
+                <input id="armor-level" type="number">
+            </td>
+        </tr>
+        <tr>
+            <td>Tools</td>
+            <td>
+                <input id="tools-level" type="number">
+            </td>
+        </tr>
+        <tr>
+            <td>Next update at</td>
+            <td id="next-update"></td>
+        </tr>
+        <tr>
+            <td>Time before upgrade</td>
+            <td>
+                <input id="timer" type="number"> seconds
+            </td>
+        </tr>
+    </table>
+    <button id="reset-timer-btn">Reset timer</button> <button id="reset-timer-at-btn">Reset timer at</button>
+        <input id="reset-date" style="display:none;" type="datetime-local">
+    <div>OBS url: <a target="_blank" id="obs-url"></a></div>
+</body>
+
+<script>
+
+const armorLevelInput = document.getElementById('armor-level')
+const toolsLevelInput = document.getElementById('tools-level')
+const timerInput = document.getElementById('timer')
+const nextUpdateLabel = document.getElementById('next-update')
+const resetTimer = document.getElementById('reset-timer-btn')
+const resetTimerAt = document.getElementById('reset-timer-at-btn')
+const resetDateInput = document.getElementById('reset-date')
+const obsUrl = document.getElementById('obs-url')
+
+let urlParams = new URLSearchParams(window.location.search)
+moment.locale(urlParams.get('lang') || 'en')
+let uid = urlParams.get('uid')
+
+let ws = new WebSocket(`ws://${location.host}/`)
+ws.onopen = function () {
+    if (uid) {
+        ws.send(JSON.stringify({ type: 'set-uid', uid }))
+    } else {
+        ws.send(JSON.stringify({ type: 'get-uid', uid }))
+    }
+}
+ws.onmessage = /**
+@param {MessageEvent} ev 
+*/function (ev) {
+    try {
+        const obj = JSON.parse(ev.data)
+        switch (obj.type) {
+            case 'get-uid':
+                uid = obj.uid
+                location.replace(`${location.protocol}//${location.host}?uid=${uid}`)
+                ws.send(JSON.stringify({ type: 'get-state' }))
+            case 'set-uid':
+                obsUrl.href = obsUrl.innerText = `${location.protocol}//${location.host}/obs.html${location.search}&lang=fr`
+                ws.send(JSON.stringify({ type: 'get-state' }))
+                break
+            case 'get-state':
+                updateArmorLevel(obj.state.armorLevel)
+                updateToolsLevel(obj.state.toolsLevel)
+                updateTimerInput(obj.state.timer)
+                updateNextUpdate(obj.nextUpdate)
+                break
+        }
+    } catch (err) {
+        console.error(err)
+    }
+}
+
+armorLevelInput.addEventListener('change', () => {
+    var value = +armorLevelInput.value
+    if (isNaN(value))
+        return
+    ws.send(JSON.stringify({
+        type: 'set-armor-level',
+        armorLevel: value
+    }))
+})
+
+toolsLevelInput.addEventListener('change', () => {
+    var value = +toolsLevelInput.value
+    if (isNaN(value))
+        return
+    ws.send(JSON.stringify({
+        type: 'set-tools-level',
+        toolsLevel: value
+    }))
+})
+
+timerInput.addEventListener('change', () => {
+    var value = +timerInput.value
+    if (isNaN(value))
+        return
+    ws.send(JSON.stringify({
+        type: 'set-timer',
+        timer: value * 1000
+    }))
+})
+
+resetTimer.addEventListener('click', () => {
+    ws.send(JSON.stringify({
+        type: 'reset-timer'
+    }))
+})
+
+resetTimerAt.addEventListener('click', () => {
+    if (resetDateInput.style.display === 'none') {
+        resetDateInput.style.display = ''
+        let date = new Date()
+        resetDateInput.value = [date.getFullYear(), (date.getMonth() + 1).toString(10).padStart(2, '0'), date.getDate().toString(10).padStart(2, '0')].join('-') + 'T' +
+            [date.getHours().toString(10).padStart(2, '0'), date.getMinutes().toString(10).padStart(2, '0')].join(':')
+    } else {
+        resetDateInput.style.display = 'none'
+        ws.send(JSON.stringify({
+            type: 'manual-set-reset-date',
+            resetAt: new Date(resetDateInput.value).toISOString()
+        }))
+    }
+})
+
+function updateArmorLevel(level) {
+    if (document.activeElement != armorLevelInput)
+        armorLevelInput.value = level
+}
+
+function updateToolsLevel(level) {
+    if (document.activeElement != toolsLevelInput)
+        toolsLevelInput.value = level
+}
+
+function updateTimerInput(timer) {
+    if (document.activeElement != timerInput)
+        timerInput.value = timer / 1000
+}
+
+function updateNextUpdate(nextUpdate) {
+    let nextUpdateDate = new Date(nextUpdate)
+    nextUpdateLabel.innerText = (!isNaN(+nextUpdateDate) && nextUpdate != null) ? nextUpdateDate.toLocaleString() : ''
+}
+
+setInterval(() => {
+    ws.send(JSON.stringify({ type: 'get-state' }))
+}, 1000)
+
+</script>
+</html>
