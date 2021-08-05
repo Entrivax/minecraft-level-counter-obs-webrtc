@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Comfortaa&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-with-locales.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/humanize-duration/3.27.0/humanize-duration.min.js"></script>
+    <script src="./peerjs.min.js"></script>
     <style>
         html, body {
             border: 0;
@@ -106,7 +108,7 @@
                 <div class="item armor"></div>
             </div>
         </div>
-        <div id="upgrade-text" class="text">Augmentation <span id="timer"></span></div>
+        <div id="upgrade-text" class="text">Augmentation dans <span id="timer"></span></div>
     </div>
 </body>
 
@@ -122,6 +124,63 @@ let uid = urlParams.get('uid')
 if (!uid) {
     document.write("No uid, check the link")
 } else {
+    let peer = new Peer({
+        host: '/',
+        path: '/api',
+        port: +location.port || {
+            'http:': 80,
+            'https:': 443
+        }[location.protocol]
+    })
+    let conn
+    let lastPing = null
+    peer.on('open', (id) => {
+        conn = connect(uid)
+    })
+
+    setInterval(() => {
+        if (lastPing != null && new Date() - lastPing > 10000) {
+            errorHandler(new Error('Timeout'))
+        }
+    }, 4000)
+
+    function errorHandler(error) {
+        try {
+            if (conn) {
+                conn.close()
+            }
+        } catch (err) { }
+        conn = connect(uid)
+    }
+
+    function connect(uid) {
+        let conn = peer.connect(uid, {
+            reliable: true
+        })
+        conn.on('data', (obj) => {
+            switch (obj.type) {
+                case 'set-state':
+                    updateArmorLevel(obj.armorLevel)
+                    updateToolsLevel(obj.toolsLevel)
+                    updateTimerInput(obj.nextUpdateDate)
+                    // setTimeout(() => {
+                    //     conn.send({ type: 'get-state' })
+                    // }, 1000)
+                    break
+                case 'ping':
+                    lastPing = +(new Date())
+                    conn.send({
+                        type: 'pong'
+                    });
+                    break
+            }
+        })
+        conn.on('open', () => {
+            conn.send({ type: 'get-state' })
+        })
+        conn.on('error', errorHandler)
+        return conn
+    }
     let lang = urlParams.get('lang') || 'en'
     moment.locale(lang)
     moment.relativeTimeThreshold('h', 23)
@@ -129,34 +188,34 @@ if (!uid) {
     moment.relativeTimeThreshold('s', 59)
     moment.relativeTimeThreshold('ss', null)
     
-    let ws = new WebSocket(`ws://${location.host}/`)
-    ws.onopen = function () {
-        if (uid) {
-            ws.send(JSON.stringify({ type: 'set-uid', uid }))
-        }
-    }
-    ws.onmessage = /**
-    @param {MessageEvent} ev 
-    */function (ev) {
-        try {
-            const obj = JSON.parse(ev.data)
-            switch (obj.type) {
-                case 'set-uid':
-                    ws.send(JSON.stringify({ type: 'get-state' }))
-                    break
-                case 'get-state':
-                    updateArmorLevel(obj.state.armorLevel)
-                    updateToolsLevel(obj.state.toolsLevel)
-                    updateTimerInput(obj.nextUpdate)
-                    setTimeout(() => {
-                        ws.send(JSON.stringify({ type: 'get-state' }))
-                    }, 1000)
-                    break
-            }
-        } catch (err) {
-            console.error(err)
-        }
-    }
+    // let ws = new WebSocket(`ws://${location.host}/`)
+    // ws.onopen = function () {
+    //     if (uid) {
+    //         ws.send(JSON.stringify({ type: 'set-uid', uid }))
+    //     }
+    // }
+    // ws.onmessage = /**
+    // @param {MessageEvent} ev 
+    // */function (ev) {
+    //     try {
+    //         const obj = JSON.parse(ev.data)
+    //         switch (obj.type) {
+    //             case 'set-uid':
+    //                 ws.send(JSON.stringify({ type: 'get-state' }))
+    //                 break
+    //             case 'get-state':
+    //                 updateArmorLevel(obj.state.armorLevel)
+    //                 updateToolsLevel(obj.state.toolsLevel)
+    //                 updateTimerInput(obj.nextUpdate)
+    //                 setTimeout(() => {
+    //                     ws.send(JSON.stringify({ type: 'get-state' }))
+    //                 }, 1000)
+    //                 break
+    //         }
+    //     } catch (err) {
+    //         console.error(err)
+    //     }
+    // }
 }
 
 function updateArmorLevel(level) {
@@ -175,7 +234,7 @@ function updateTimerInput(next) {
 
 function updateNextUpdate() {
     upgradeLabel.style.display = nextUpdate ? '' : 'none'
-    timerLabel.innerText = nextUpdate ? moment(nextUpdate).fromNow() : ''
+    timerLabel.innerText = nextUpdate ? humanizeDuration(moment(nextUpdate) - moment(), { maxDecimalPoints: 0, serialComma: false, largest: 1, language: urlParams.get('lang') || 'en' }) : ''
 }
 
 setInterval(() => {

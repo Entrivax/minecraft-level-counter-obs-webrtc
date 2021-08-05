@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minecraft timer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-with-locales.min.js"></script>
+    <script src="./peerjs.min.js"></script>
 </head>
 <body>
     <table>
@@ -43,83 +44,147 @@ const armorLevelInput = document.getElementById('armor-level')
 const toolsLevelInput = document.getElementById('tools-level')
 const timerInput = document.getElementById('timer')
 const nextUpdateLabel = document.getElementById('next-update')
-const resetTimer = document.getElementById('reset-timer-btn')
+const resetTimerBtn = document.getElementById('reset-timer-btn')
 const resetTimerAt = document.getElementById('reset-timer-at-btn')
 const resetDateInput = document.getElementById('reset-date')
 const obsUrl = document.getElementById('obs-url')
+
+let storageData = loadFromStorage()
+let nextUpdateDate = storageData.nextUpdateDate,
+    armorLevel = storageData.armorLevel,
+    toolsLevel = storageData.toolsLevel,
+    timer = storageData.timer
+
+updateNextUpdate(nextUpdateDate)
+armorLevelInput.value = armorLevel
+toolsLevelInput.value = toolsLevel
+timerInput.value = timer / 1000
 
 let urlParams = new URLSearchParams(window.location.search)
 moment.locale(urlParams.get('lang') || 'en')
 let uid = urlParams.get('uid')
 
-let ws = new WebSocket(`ws://${location.host}/`)
-ws.onopen = function () {
-    if (uid) {
-        ws.send(JSON.stringify({ type: 'set-uid', uid }))
-    } else {
-        ws.send(JSON.stringify({ type: 'get-uid', uid }))
-    }
-}
-ws.onmessage = /**
-@param {MessageEvent} ev 
-*/function (ev) {
-    try {
-        const obj = JSON.parse(ev.data)
-        switch (obj.type) {
-            case 'get-uid':
-                uid = obj.uid
-                location.replace(`${location.protocol}//${location.host}?uid=${uid}`)
-                ws.send(JSON.stringify({ type: 'get-state' }))
-            case 'set-uid':
-                obsUrl.href = obsUrl.innerText = `${location.protocol}//${location.host}/obs.html${location.search}&lang=fr`
-                ws.send(JSON.stringify({ type: 'get-state' }))
-                break
-            case 'get-state':
-                updateArmorLevel(obj.state.armorLevel)
-                updateToolsLevel(obj.state.toolsLevel)
-                updateTimerInput(obj.state.timer)
-                updateNextUpdate(obj.nextUpdate)
-                break
+let peer = new Peer(uid ? uid : undefined, {
+    host: '/',
+    path: '/api',
+    port: +location.port || {
+        'http:': 80,
+        'https:': 443
+    }[location.protocol]
+})
+peer.on('error', (err) => {
+    console.error(err)
+})
+peer.on('open', (id) => {
+    console.log('opened', id)
+    uid = id
+    history.pushState({}, null, new URL(`./?uid=${uid}`, document.baseURI).href)
+    obsUrl.href = obsUrl.innerText = new URL(`./obs.html${location.search}&lang=fr`, document.baseURI).href
+})
+let clients = []
+peer.on('connection', (conn) => {
+    conn.on('open', () => {
+        clients.push(conn)
+        notifyClient(conn)
+    })
+    conn.on('close', () => {
+        const indexOf = clients.indexOf(conn)
+        if (indexOf !== -1) {
+            clients.splice(indexOf, 1)
         }
-    } catch (err) {
-        console.error(err)
-    }
-}
+    })
+    conn.on('error', () => {
+        const indexOf = clients.indexOf(conn)
+        if (indexOf !== -1) {
+            clients.splice(indexOf, 1)
+        }
+    })
+    conn.on('data', (obj) => {
+        switch (obj.type) {
+            case 'get-state':
+                notifyClient(conn)
+        }
+    })
+})
+// let ws = new WebSocket(`ws://${location.host}/`)
+// ws.onopen = function () {
+//     if (uid) {
+//         ws.send(JSON.stringify({ type: 'set-uid', uid }))
+//     } else {
+//         ws.send(JSON.stringify({ type: 'get-uid', uid }))
+//     }
+// }
+// ws.onmessage = /**
+// @param {MessageEvent} ev 
+// */function (ev) {
+//     try {
+//         const obj = JSON.parse(ev.data)
+//         switch (obj.type) {
+//             case 'get-uid':
+//                 uid = obj.uid
+//                 location.replace(`${location.protocol}//${location.host}?uid=${uid}`)
+//                 ws.send(JSON.stringify({ type: 'get-state' }))
+//             case 'set-uid':
+//                 obsUrl.href = obsUrl.innerText = `${location.protocol}//${location.host}/obs.html${location.search}&lang=fr`
+//                 ws.send(JSON.stringify({ type: 'get-state' }))
+//                 break
+//             case 'get-state':
+//                 updateArmorLevel(obj.state.armorLevel)
+//                 updateToolsLevel(obj.state.toolsLevel)
+//                 updateTimerInput(obj.state.timer)
+//                 updateNextUpdate(obj.nextUpdate)
+//                 break
+//         }
+//     } catch (err) {
+//         console.error(err)
+//     }
+// }
 
 armorLevelInput.addEventListener('change', () => {
     var value = +armorLevelInput.value
     if (isNaN(value))
         return
-    ws.send(JSON.stringify({
-        type: 'set-armor-level',
-        armorLevel: value
-    }))
+    armorLevel = value
+    notifyClients()
+    updateStorage()
+    // ws.send(JSON.stringify({
+    //     type: 'set-armor-level',
+    //     armorLevel: value
+    // }))
 })
 
 toolsLevelInput.addEventListener('change', () => {
     var value = +toolsLevelInput.value
     if (isNaN(value))
         return
-    ws.send(JSON.stringify({
-        type: 'set-tools-level',
-        toolsLevel: value
-    }))
+    toolsLevel = value
+    notifyClients()
+    updateStorage()
+    // ws.send(JSON.stringify({
+    //     type: 'set-tools-level',
+    //     toolsLevel: value
+    // }))
 })
 
 timerInput.addEventListener('change', () => {
     var value = +timerInput.value
     if (isNaN(value))
         return
-    ws.send(JSON.stringify({
-        type: 'set-timer',
-        timer: value * 1000
-    }))
+    timer = value * 1000
+    notifyClients()
+    updateStorage()
+    // ws.send(JSON.stringify({
+    //     type: 'set-timer',
+    //     timer: value * 1000
+    // }))
 })
 
-resetTimer.addEventListener('click', () => {
-    ws.send(JSON.stringify({
-        type: 'reset-timer'
-    }))
+resetTimerBtn.addEventListener('click', () => {
+    resetTimer()
+    updateStorage()
+    // ws.send(JSON.stringify({
+    //     type: 'reset-timer'
+    // }))
 })
 
 resetTimerAt.addEventListener('click', () => {
@@ -130,10 +195,14 @@ resetTimerAt.addEventListener('click', () => {
             [date.getHours().toString(10).padStart(2, '0'), date.getMinutes().toString(10).padStart(2, '0')].join(':')
     } else {
         resetDateInput.style.display = 'none'
-        ws.send(JSON.stringify({
-            type: 'manual-set-reset-date',
-            resetAt: new Date(resetDateInput.value).toISOString()
-        }))
+        nextUpdateDate = +(new Date(resetDateInput.value))
+        notifyClients()
+        updateNextUpdate(nextUpdateDate)
+        updateStorage()
+        // ws.send(JSON.stringify({
+        //     type: 'manual-set-reset-date',
+        //     resetAt: new Date(resetDateInput.value).toISOString()
+        // }))
     }
 })
 
@@ -157,9 +226,104 @@ function updateNextUpdate(nextUpdate) {
     nextUpdateLabel.innerText = (!isNaN(+nextUpdateDate) && nextUpdate != null) ? nextUpdateDate.toLocaleString() : ''
 }
 
+function notifyClients() {
+    clients.filter((client) => {
+        try {
+            notifyClient(client)
+            return true
+        } catch (err) {
+            return false
+        }
+    })
+}
+function notifyClient(client) {
+    client.send({
+        type: 'set-state',
+        armorLevel,
+        toolsLevel,
+        timer,
+        nextUpdateDate
+    })
+}
+
+function pingClients() {
+    clients = clients.filter((client) => {
+        try {
+            client.send({
+                type: 'ping'
+            })
+            return true
+        } catch (err) {
+            console.warn(err)
+            return false
+        }
+    })
+}
+
+function updateStorage() {
+    localStorage.setItem('level-counter-data', JSON.stringify({
+        armorLevel,
+        toolsLevel,
+        timer,
+        nextUpdateDate
+    }))
+}
+
+function loadFromStorage() {
+    let storedValues = localStorage.getItem('level-counter-data')
+    if (storedValues) {
+        try {
+            storedValues = JSON.parse(storedValues)
+            if (typeof storedValues !== 'object') {
+                storedValues = null
+            }
+        } catch (err) {
+            storedValues = null
+        }
+    }
+    let armorLevel = storedValues?.armorLevel ?? 1
+    let toolsLevel = storedValues?.toolsLevel ?? 1
+    let timer = storedValues?.timer ?? 3600000
+    return {
+        armorLevel,
+        toolsLevel,
+        timer,
+        nextUpdateDate: storedValues?.nextUpdateDate
+    }
+}
+
+setInterval(pingClients, 5000)
+
 setInterval(() => {
-    ws.send(JSON.stringify({ type: 'get-state' }))
+    let currentDate = new Date()
+    if (currentDate >= nextUpdateDate) {
+        if (armorLevel < 6) {
+            armorLevel++
+        }
+        if (toolsLevel < 6) {
+            toolsLevel++
+        }
+        armorLevelInput.value = armorLevel
+        toolsLevelInput.value = toolsLevel
+        timerInput.value = timer / 1000
+        resetTimer()
+        updateStorage()
+    }
 }, 1000)
+
+function resetTimer(oldUpdateDate) {
+    if (!isNaN(oldUpdateDate)) {
+        nextUpdateDate = timer != 0 ? (oldUpdateDate + timer) : null
+    } else {
+        nextUpdateDate = timer != 0 ? ((+new Date()) + timer) : null
+    }
+    notifyClients()
+    updateNextUpdate(nextUpdateDate)
+}
+
+// setInterval(() => {
+//     ws.send(JSON.stringify({ type: 'get-state' }))
+// }, 1000)
 
 </script>
 </html>
