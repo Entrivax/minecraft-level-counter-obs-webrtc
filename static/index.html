@@ -32,6 +32,36 @@
                 <input id="timer" type="number"> seconds
             </td>
         </tr>
+        <tr>
+            <td>Streamloots widget id</td>
+            <td>
+                <input id="widget-id"> <button id="update-widget-id-btn">Update</button> <span id="streamloots-state">(Disconnected)</span>
+            </td>
+        </tr>
+        <tr>
+            <td>Upgrade armor cards</td>
+            <td>
+                <input id="upgrade-armor">
+            </td>
+        </tr>
+        <tr>
+            <td>Downgrade armor cards</td>
+            <td>
+                <input id="downgrade-armor">
+            </td>
+        </tr>
+        <tr>
+            <td>Upgrade tools cards</td>
+            <td>
+                <input id="upgrade-tools">
+            </td>
+        </tr>
+        <tr>
+            <td>Downgrade tools cards</td>
+            <td>
+                <input id="downgrade-tools">
+            </td>
+        </tr>
     </table>
     <button id="reset-timer-btn">Reset timer</button> <button id="reset-timer-at-btn">Reset timer at</button>
         <input id="reset-date" style="display:none;" type="datetime-local">
@@ -48,17 +78,36 @@ const resetTimerBtn = document.getElementById('reset-timer-btn')
 const resetTimerAt = document.getElementById('reset-timer-at-btn')
 const resetDateInput = document.getElementById('reset-date')
 const obsUrl = document.getElementById('obs-url')
+const streamlootsWidgetIdInput = document.getElementById('widget-id')
+const streamlootsUpdateWidgetIdBtn = document.getElementById('update-widget-id-btn')
+const upgradeArmorCardsInput = document.getElementById('upgrade-armor')
+const downgradeArmorCardsInput = document.getElementById('downgrade-armor')
+const upgradeToolsCardsInput = document.getElementById('upgrade-tools')
+const downgradeToolsCardsInput = document.getElementById('downgrade-tools')
+const streamlootsState = document.getElementById('streamloots-state')
 
 let storageData = loadFromStorage()
 let nextUpdateDate = storageData.nextUpdateDate,
     armorLevel = storageData.armorLevel,
     toolsLevel = storageData.toolsLevel,
-    timer = storageData.timer
+    timer = storageData.timer,
+    streamlootsWidgetId = storageData.streamlootsWidgetId,
+    upgradeArmorCards = storageData.upgradeArmorCards,
+    downgradeArmorCards = storageData.downgradeArmorCards,
+    upgradeToolsCards = storageData.upgradeToolsCards,
+    downgradeToolsCards = storageData.downgradeToolsCards
 
 updateNextUpdate(nextUpdateDate)
 armorLevelInput.value = armorLevel
 toolsLevelInput.value = toolsLevel
 timerInput.value = timer / 1000
+streamlootsWidgetIdInput.value = streamlootsWidgetId ?? ''
+upgradeArmorCardsInput.value = upgradeArmorCards?.join(',') ?? ''
+downgradeArmorCardsInput.value = downgradeArmorCards?.join(',') ?? ''
+upgradeToolsCardsInput.value = upgradeToolsCards?.join(',') ?? ''
+downgradeToolsCardsInput.value = downgradeToolsCards?.join(',') ?? ''
+
+let eventSource = null
 
 let urlParams = new URLSearchParams(window.location.search)
 moment.locale(urlParams.get('lang') || 'en')
@@ -106,39 +155,6 @@ peer.on('connection', (conn) => {
         }
     })
 })
-// let ws = new WebSocket(`ws://${location.host}/`)
-// ws.onopen = function () {
-//     if (uid) {
-//         ws.send(JSON.stringify({ type: 'set-uid', uid }))
-//     } else {
-//         ws.send(JSON.stringify({ type: 'get-uid', uid }))
-//     }
-// }
-// ws.onmessage = /**
-// @param {MessageEvent} ev 
-// */function (ev) {
-//     try {
-//         const obj = JSON.parse(ev.data)
-//         switch (obj.type) {
-//             case 'get-uid':
-//                 uid = obj.uid
-//                 location.replace(`${location.protocol}//${location.host}?uid=${uid}`)
-//                 ws.send(JSON.stringify({ type: 'get-state' }))
-//             case 'set-uid':
-//                 obsUrl.href = obsUrl.innerText = `${location.protocol}//${location.host}/obs.html${location.search}&lang=fr`
-//                 ws.send(JSON.stringify({ type: 'get-state' }))
-//                 break
-//             case 'get-state':
-//                 updateArmorLevel(obj.state.armorLevel)
-//                 updateToolsLevel(obj.state.toolsLevel)
-//                 updateTimerInput(obj.state.timer)
-//                 updateNextUpdate(obj.nextUpdate)
-//                 break
-//         }
-//     } catch (err) {
-//         console.error(err)
-//     }
-// }
 
 armorLevelInput.addEventListener('change', () => {
     var value = +armorLevelInput.value
@@ -147,10 +163,6 @@ armorLevelInput.addEventListener('change', () => {
     armorLevel = value
     notifyClients()
     updateStorage()
-    // ws.send(JSON.stringify({
-    //     type: 'set-armor-level',
-    //     armorLevel: value
-    // }))
 })
 
 toolsLevelInput.addEventListener('change', () => {
@@ -160,10 +172,6 @@ toolsLevelInput.addEventListener('change', () => {
     toolsLevel = value
     notifyClients()
     updateStorage()
-    // ws.send(JSON.stringify({
-    //     type: 'set-tools-level',
-    //     toolsLevel: value
-    // }))
 })
 
 timerInput.addEventListener('change', () => {
@@ -173,18 +181,35 @@ timerInput.addEventListener('change', () => {
     timer = value * 1000
     notifyClients()
     updateStorage()
-    // ws.send(JSON.stringify({
-    //     type: 'set-timer',
-    //     timer: value * 1000
-    // }))
+})
+
+upgradeArmorCardsInput.addEventListener('change', () => {
+    var cards = upgradeArmorCardsInput.value.split(',').map(v => v.trim())
+    upgradeArmorCards = cards
+    updateStorage()
+})
+
+downgradeArmorCardsInput.addEventListener('change', () => {
+    var cards = downgradeArmorCardsInput.value.split(',').map(v => v.trim())
+    downgradeArmorCards = cards
+    updateStorage()
+})
+
+upgradeToolsCardsInput.addEventListener('change', () => {
+    var cards = upgradeToolsCardsInput.value.split(',').map(v => v.trim())
+    upgradeToolsCards = cards
+    updateStorage()
+})
+
+downgradeToolsCardsInput.addEventListener('change', () => {
+    var cards = downgradeToolsCardsInput.value.split(',').map(v => v.trim())
+    downgradeToolsCards = cards
+    updateStorage()
 })
 
 resetTimerBtn.addEventListener('click', () => {
     resetTimer()
     updateStorage()
-    // ws.send(JSON.stringify({
-    //     type: 'reset-timer'
-    // }))
 })
 
 resetTimerAt.addEventListener('click', () => {
@@ -199,27 +224,52 @@ resetTimerAt.addEventListener('click', () => {
         notifyClients()
         updateNextUpdate(nextUpdateDate)
         updateStorage()
-        // ws.send(JSON.stringify({
-        //     type: 'manual-set-reset-date',
-        //     resetAt: new Date(resetDateInput.value).toISOString()
-        // }))
     }
 })
 
-function updateArmorLevel(level) {
-    if (document.activeElement != armorLevelInput)
-        armorLevelInput.value = level
-}
-
-function updateToolsLevel(level) {
-    if (document.activeElement != toolsLevelInput)
-        toolsLevelInput.value = level
-}
-
-function updateTimerInput(timer) {
-    if (document.activeElement != timerInput)
-        timerInput.value = timer / 1000
-}
+streamlootsUpdateWidgetIdBtn.addEventListener('click', () => {
+    if (eventSource) {
+        try {
+            eventSource.close()
+        } catch (err) {
+            console.error(err)
+        }
+        streamlootsState.innerText = '(Disconnected)'
+        eventSource = null
+    }
+    var value = streamlootsWidgetIdInput.value
+    streamlootsState.innerText = '(Connecting...)'
+    const evtSource = new EventSource(`https://widgets.streamloots.com/alerts/${value}/media-stream`)
+    eventSource = evtSource
+    evtSource.onopen = () => {
+        streamlootsWidgetId = value
+        updateStorage()
+        streamlootsState.innerText = '(Connected)'
+    }
+    evtSource.onerror = () => {
+        streamlootsState.innerText = '(Disconnected)'
+        eventSource = null
+    }
+    evtSource.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data)
+            if (upgradeArmorCards?.indexOf(data.data.cardId) > -1) {
+                upgradeArmor()
+            }
+            if (downgradeArmorCards?.indexOf(data.data.cardId) > -1) {
+                downgradeArmor()
+            }
+            if (upgradeToolsCards?.indexOf(data.data.cardId) > -1) {
+                upgradeTools()
+            }
+            if (downgradeToolsCards?.indexOf(data.data.cardId) > -1) {
+                downgradeTools()
+            }
+        } catch (err) {
+            console.error(err)
+        }
+    }
+})
 
 function updateNextUpdate(nextUpdate) {
     let nextUpdateDate = new Date(nextUpdate)
@@ -265,7 +315,12 @@ function updateStorage() {
         armorLevel,
         toolsLevel,
         timer,
-        nextUpdateDate
+        nextUpdateDate,
+        streamlootsWidgetId,
+        upgradeArmorCards,
+        downgradeArmorCards,
+        upgradeToolsCards,
+        downgradeToolsCards,
     }))
 }
 
@@ -288,7 +343,12 @@ function loadFromStorage() {
         armorLevel,
         toolsLevel,
         timer,
-        nextUpdateDate: storedValues?.nextUpdateDate
+        nextUpdateDate: storedValues?.nextUpdateDate,
+        streamlootsWidgetId: storedValues?.streamlootsWidgetId,
+        upgradeArmorCards: storedValues?.upgradeArmorCards,
+        downgradeArmorCards: storedValues?.downgradeArmorCards,
+        upgradeToolsCards: storedValues?.upgradeToolsCards,
+        downgradeToolsCards: storedValues?.downgradeToolsCards
     }
 }
 
@@ -321,9 +381,37 @@ function resetTimer(oldUpdateDate) {
     updateNextUpdate(nextUpdateDate)
 }
 
-// setInterval(() => {
-//     ws.send(JSON.stringify({ type: 'get-state' }))
-// }, 1000)
+function upgradeTools() {
+    if (toolsLevel < 6) {
+        toolsLevel++
+    }
+    updateStorage()
+    notifyClients()
+}
+
+function downgradeTools() {
+    if (toolsLevel > 0) {
+        toolsLevel--
+    }
+    updateStorage()
+    notifyClients()
+}
+
+function upgradeArmor() {
+    if (armorLevel < 6) {
+        armorLevel++
+    }
+    updateStorage()
+    notifyClients()
+}
+
+function downgradeArmor() {
+    if (armorLevel > 0) {
+        armorLevel--
+    }
+    updateStorage()
+    notifyClients()
+}
 
 </script>
 </html>
