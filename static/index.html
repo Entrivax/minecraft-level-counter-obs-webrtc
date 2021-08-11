@@ -384,6 +384,7 @@ function resetTimer(oldUpdateDate) {
 function upgradeTools() {
     if (toolsLevel < 6) {
         toolsLevel++
+        toolsLevelInput.value = toolsLevel
     }
     updateStorage()
     notifyClients()
@@ -392,6 +393,7 @@ function upgradeTools() {
 function downgradeTools() {
     if (toolsLevel > 0) {
         toolsLevel--
+        toolsLevelInput.value = toolsLevel
     }
     updateStorage()
     notifyClients()
@@ -400,6 +402,7 @@ function downgradeTools() {
 function upgradeArmor() {
     if (armorLevel < 6) {
         armorLevel++
+        armorLevelInput.value = armorLevel
     }
     updateStorage()
     notifyClients()
@@ -408,6 +411,7 @@ function upgradeArmor() {
 function downgradeArmor() {
     if (armorLevel > 0) {
         armorLevel--
+        armorLevelInput.value = armorLevel
     }
     updateStorage()
     notifyClients()
