@@ -7,65 +7,84 @@
     <title>Minecraft timer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment-with-locales.min.js"></script>
     <script src="./peerjs.min.js"></script>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            min-height: 100%;
+        }
+    </style>
 </head>
-<body>
-    <table>
-        <tr>
-            <td>Armor</td>
-            <td>
-                <input id="armor-level" type="number">
-            </td>
-        </tr>
-        <tr>
-            <td>Tools</td>
-            <td>
-                <input id="tools-level" type="number">
-            </td>
-        </tr>
-        <tr>
-            <td>Next update at</td>
-            <td id="next-update"></td>
-        </tr>
-        <tr>
-            <td>Time before upgrade</td>
-            <td>
-                <input id="timer" type="number"> seconds
-            </td>
-        </tr>
-        <tr>
-            <td>Streamloots widget id</td>
-            <td>
-                <input id="widget-id"> <button id="update-widget-id-btn">Update</button> <span id="streamloots-state">(Disconnected)</span>
-            </td>
-        </tr>
-        <tr>
-            <td>Upgrade armor cards</td>
-            <td>
-                <input id="upgrade-armor">
-            </td>
-        </tr>
-        <tr>
-            <td>Downgrade armor cards</td>
-            <td>
-                <input id="downgrade-armor">
-            </td>
-        </tr>
-        <tr>
-            <td>Upgrade tools cards</td>
-            <td>
-                <input id="upgrade-tools">
-            </td>
-        </tr>
-        <tr>
-            <td>Downgrade tools cards</td>
-            <td>
-                <input id="downgrade-tools">
-            </td>
-        </tr>
-    </table>
-    <button id="reset-timer-btn">Reset timer</button> <button id="reset-timer-at-btn">Reset timer at</button>
-        <input id="reset-date" style="display:none;" type="datetime-local">
-    <div>OBS url: <a target="_blank" id="obs-url"></a></div>
+<body class="bg-indigo-900 text-white">
+    <div class="w-full h-full bg-black bg-opacity-75 p-6 flex align-center flex-col">
+        <div class="rounded-xl bg-indigo-700">
+            <div class="p-6 bg-black bg-opacity-50">
+                <table class="table-auto w-full">
+                    <tbody>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Armor</td>
+                            <td>
+                                <input id="armor-level" type="number" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Tools</td>
+                            <td>
+                                <input id="tools-level" type="number" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Next update at</td>
+                            <td id="next-update"></td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Time before upgrade</td>
+                            <td>
+                                <input id="timer" type="number" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full"> seconds
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Streamloots widget id</td>
+                            <td>
+                                <input id="widget-id" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full"> <button id="update-widget-id-btn" class="px-2 py-1 bg-indigo-600 text-white rounded">Update</button> <span id="streamloots-state">(Disconnected)</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Upgrade armor cards</td>
+                            <td>
+                                <input id="upgrade-armor" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Downgrade armor cards</td>
+                            <td>
+                                <input id="downgrade-armor" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Upgrade tools cards</td>
+                            <td>
+                                <input id="upgrade-tools" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-right font-bold p-2 w-1/5">Downgrade tools cards</td>
+                            <td>
+                                <input id="downgrade-tools" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900 w-full">
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <hr class="border-gray-900 my-3">
+                <div class="text-center">
+                    <button id="reset-timer-btn" class="px-2 py-1 bg-indigo-600 text-white rounded">Reset timer</button> <button id="reset-timer-at-btn" class="px-2 py-1 bg-indigo-600 text-white rounded">Reset timer at</button>
+                        <input id="reset-date" style="display:none;" type="datetime-local" class="border border-gray-900 focus:border-indigo-700 px-2 py-1 rounded bg-indigo-900">
+                    <div>OBS url: <a target="_blank" id="obs-url" class="text-indigo-400 underline"></a></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 
 <script>
